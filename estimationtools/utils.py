@@ -148,21 +148,18 @@ def parse_options(db, content, options):
 def execute_query(env, req, query_args):
     # set maximum number of returned tickets to 0 to get all tickets at once
     query_args['max'] = 0
-    # urlencode the args, converting back a few vital exceptions:
-    # see the authorized fields in the query language in
-    # http://trac.edgewall.org/wiki/TracQuery#QueryLanguage
-    query_string = unicode_urlencode(query_args).replace('%21=', '!=') \
-                                                .replace('%21%7E=', '!~=') \
-                                                .replace('%7E=', '~=') \
-                                                .replace('%5E=', '^=') \
-                                                .replace('%24=', '$=') \
-                                                .replace('%21%5E=', '!^=') \
-                                                .replace('%21%24=', '!$=') \
-                                                .replace('%7C', '|') \
-                                                .replace('+', ' ') \
-                                                .replace('%23', '#') \
-                                                .replace('%28', '(') \
-                                                .replace('%29', ')')
+    def encode(params):
+        from trac.util.text import empty
+        if isinstance(params, dict):
+            params = params.iteritems()
+        l = []
+        for k, v in params:
+            if v is empty:
+                l.append(k)
+            else:
+                l.append(k + '=' + unicode(v))
+        return '&'.join(l)
+    query_string = encode(query_args)
     env.log.debug("query_string: %s", query_string)
     query = Query.from_string(env, query_string)
 
