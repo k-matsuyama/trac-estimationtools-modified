@@ -1,0 +1,46 @@
+<script type="text/javascript" xmlns="http://www.w3.org/1999/xhtml"
+        xmlns:xi="http://www.w3.org/2001/XInclude"
+        xmlns:py="http://genshi.edgewall.org/" py:strip="">
+  jQuery(document).ready(function ($) {
+    var estimationField = '${data.field}';
+    var xmlrpcPath = '${req.href.xmlrpc()}';
+    // 'td.ticket' used in reports, 'td.id' used in queries
+    $('table.tickets td.id, table.tickets td.ticket').each(function (i) {
+      var id = jQuery.trim($(this).text()).substr(1);
+      var estimationCell = $(this).parent().find('td.' + estimationField);
+      if (estimationCell.length == 1) {
+        estimationCell.editable(function (value, settings) {
+          var currentElement = this;
+          value = $.trim(value);
+          if (value == settings.data | isNaN(parseFloat(value))) {
+            return(settings.data);
+          }
+          $.ajax({
+            type: 'POST',
+            url: xmlrpcPath,
+            data: '<methodCall><methodName>ticket.update</methodName>' +
+                '<params><param><value><int>' + id + '</int></value></param>' +
+                '<param><value><string></string></value></param>' +
+                '<param><value><struct><member><name>' + estimationField + '</name>' +
+                '<value><string>' + value + '</string></value></member></struct></value></param>' +
+                '</params></methodCall>',
+            contentType: 'text/xml',
+            success: function () {
+              $(currentElement).text(value);
+              settings.data = value;
+            }
+          });
+          return('Saving...');
+        }, {
+          data: jQuery.trim(estimationCell.text()),
+          tooltip: 'Click to edit...',
+          placeholder: '',
+          onblur: 'submit',
+          select: 'true',
+          style: 'inherit',
+          width: 60
+        });
+      }
+    });
+  });
+</script>
