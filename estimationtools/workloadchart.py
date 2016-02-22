@@ -43,6 +43,7 @@ class WorkloadChart(EstimationToolsBase, WikiMacroBase):
         options, query_args = parse_options(db, content, copy.copy(DEFAULT_OPTIONS))
 
         query_args[self.estimation_field + "!"] = None
+        query_args['col'] = '|'.join([self.totalhours_field, 'owner'])
         tickets = execute_query(self.env, req, query_args)
 
         sum = 0.0
@@ -51,7 +52,7 @@ class WorkloadChart(EstimationToolsBase, WikiMacroBase):
             if ticket['status'] in self.closed_states:
                 continue
             try:
-                estimation = float(ticket[self.estimation_field])
+                estimation = float(ticket[self.estimation_field]) - float(ticket[self.totalhours_field])
                 owner = ticket['owner']
                 sum += estimation
                 if estimations.has_key(owner):
@@ -67,6 +68,7 @@ class WorkloadChart(EstimationToolsBase, WikiMacroBase):
             # Note: Unconditional obfuscation of owner in case it represents
             # an email adress, and as the chart API doesn't support SSL
             # (plain http transfer only, from either client or server).
+            estimation = max(0, estimation)
             labels.append("%s %g%s" % (obfuscate_email_address(owner),
                             round(estimation, 2),
                             self.estimation_suffix))
