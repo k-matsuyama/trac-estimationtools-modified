@@ -1,21 +1,21 @@
 import copy
+import random
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from genshi.builder import tag
 from trac.core import TracError
-from trac.util.text import unicode_quote, unicode_urlencode
+from trac.util.presentation import to_json
 from trac.wiki.macros import WikiMacroBase
 
 from estimationtools.utils import parse_options, execute_query, \
-                                  get_estimation_field, get_closed_states, \
-                                  from_timestamp, get_serverside_charts,\
-                                  EstimationToolsBase
+                                  get_closed_states, \
+                                  from_timestamp, EstimationToolsBase
 
 DEFAULT_OPTIONS = {'width': '800', 'height': '200', 'color': 'ff9900',
                    'expected': '0', 'bgcolor': 'ffffff00',
-                   'wecolor':'ccccccaa', 'colorexpected': 'ffddaa',
-                   'weekends':'true', 'gridlines' : '0'}
+                   'colorexpected': 'ffddaa',
+                   'weekends':'true'}
 
 
 class BurndownChart(EstimationToolsBase, WikiMacroBase):
@@ -33,7 +33,6 @@ class BurndownChart(EstimationToolsBase, WikiMacroBase):
      * `weekends`: include weekends in chart. Defaults to `true` 
      * `title`: chart title. Defaults to first milestone or 'Burndown Chart'
      * `expected`: show expected progress in chart, 0 or any number to define initial expected hours (defaults to 0).
-     * `gridlines`: show gridlines in chart, 0 or any number to define hour steps (defaults to 0)
      * `width`: width of resulting diagram (defaults to 800)
      * `height`: height of resulting diagram (defaults to 200)
      * `color`: color specified as 6-letter string of hexadecimal values in the format `RRGGBB`.
@@ -42,19 +41,16 @@ class BurndownChart(EstimationToolsBase, WikiMacroBase):
        Defaults to ffddaa, a nice yellow.
      * `bgcolor`: chart drawing area background color specified as 6-letter string of hexadecimal values in the format `RRGGBB`.
        Defaults to `ffffff`.
-     * `wecolor`: chart drawing area background color for weekends specified as 6-letter string of hexadecimal values in the format `RRGGBB`.
-       Defaults to `ccccccaa`.
 
     Examples:
     {{{
         [[BurndownChart(milestone=Sprint 1, startdate=2008-01-01)]]
         [[BurndownChart(milestone=Release 3.0|Sprint 1, startdate=2008-01-01, enddate=2008-01-15,
-            weekends=false, expected=100, gridlines=20, width=600, height=100, color=0000ff)]]
+            weekends=false, expected=100, width=600, height=100, color=0000ff)]]
     }}}
     """
 
     closed_states = get_closed_states()
-    serverside_charts = get_serverside_charts()
 
     def expand_macro(self, formatter, name, content):
 
@@ -79,75 +75,58 @@ class BurndownChart(EstimationToolsBase, WikiMacroBase):
                 if date.weekday() >= 5:
                     del timetable[date]
 
-        # scale data
-        xdata, ydata, maxhours = self._scale_data(timetable, options)
-
         # build html for google chart api
+        element_id = 'chart-%d' % random.randint(0, 0xffffffff)
         dates = sorted(timetable.keys())
-        bottomaxis = "0:|" + ("|").join([str(date.day) for date in dates]) + \
-            "|1:|%s/%s|%s/%s" % (dates[0].month, dates[0].year,
-                                 dates[ - 1].month, dates[ - 1].year)
-        leftaxis = "2,0,%s" % maxhours
-        
-        # add line for expected progress
-        if options['expected'] == '0':
-            expecteddata = ""
-        else:
-            expecteddata = "|0,100|%s,0" % (round(Decimal(options['expected']) * 100 / maxhours, 2))
-
-        # prepare gridlines
-        if options['gridlines'] == '0':
-            gridlinesdata = "100.0,100.0,1,0"  # create top and right bounding line by using grid
-        else:
-            gridlinesdata = "%s,%s" % (xdata[1], (round(Decimal(options['gridlines']) * 100 / maxhours, 4)))
-
-        # mark weekends
-        weekends = []
-        saturday = None
-        index = 0
-        halfday = self._round(Decimal("0.5") / (len(dates) - 1))
-        for date in dates:
-            if date.weekday() == 5:
-                saturday = index
-            if saturday and date.weekday() == 6:
-                weekends.append("R,%s,0,%s,%s" %
-                                (options['wecolor'],
-                                 self._round((Decimal(xdata[saturday]) / 100) - halfday),
-                                 self._round((Decimal(xdata[index]) / 100) + halfday)))
-                saturday = None
-            index += 1
-        # special handling if time period starts with Sundays...
-        if len(dates) > 0 and dates[0].weekday() == 6:
-            weekends.append("R,%s,0,0.0,%s" % (options['wecolor'], halfday))
-        # or ends with Saturday
-        if len(dates) > 0 and dates[ - 1].weekday() == 5:
-            weekends.append("R,%s,0,%s,1.0" % (options['wecolor'], Decimal(1) - halfday))
+        maxhours = max(timetable.values() + [int(options.get('expected', 0))])
 
         # chart title
         title = options.get('title', None)
         if title is None and options.get('milestone'):
             title = options['milestone'].split('|')[0]
 
-        chart_args = unicode_urlencode(
-                    {'chs': '%sx%s' % (options['width'], options['height']),
-                     'chf': 'c,s,%s|bg,s,00000000' % options['bgcolor'],
-                     'chd': 't:%s|%s%s' % (",".join(xdata), ",".join(ydata), expecteddata),
-                     'cht': 'lxy',
-                     'chxt': 'x,x,y',
-                     'chxl': bottomaxis,
-                     'chxr': leftaxis,
-                     'chm': "|".join(weekends),
-                     'chg': gridlinesdata,
-                     'chco': '%s,%s' % (options['color'], options['colorexpected']),
-                     'chtt': title})
-        self.log.debug("BurndownChart data: %s" % repr(chart_args))
-        if self.serverside_charts:
-            return tag.image(src="%s?data=%s" % (req.href.estimationtools('chart'),
-                                    unicode_quote(chart_args)),
-                             alt="Burndown Chart (server)")
-        else:
-            return tag.image(src="http://chart.googleapis.com/chart?%s" % chart_args,
-                             alt="Burndown Chart (client)")
+        data = []
+        data.append([
+            {'label': 'Date', 'type': 'date'},
+            {'label': 'Actual', 'type': 'number'},
+        ])
+        expected = Decimal(options['expected']) if options['expected'] != '0' else None
+        if expected is not None:
+            data[-1].append({'label': 'Expected', 'type': 'number'})
+
+        for n, d in enumerate(dates):
+            data.append([d.strftime('%Y-%m-%d'), str(timetable[d]) if d <= options['today'] else None])
+            if expected is not None:
+                data[-1].append(str(self._round(expected * (len(dates) - n) / len(dates))))
+
+        args = {
+            'containerId': element_id,
+            'chartType': 'LineChart',
+            'options': {
+                'width': int(options['width']),
+                'height': int(options['height']),
+                'title': title,
+                'legend': { 'position': 'none' },
+                'colors': ['#' + options['color'], '#' + options['colorexpected']],
+                'chartArea': {
+                    'width': '80%',
+                    'backgroundColor': '#' + options['bgcolor']
+                },
+                'hAxis': {
+                    'gridlines': { 'color': 'none' },
+                },
+                'vAxis': {
+                    'ticks': [0, int(maxhours)],
+                },
+            },
+        }
+        script = "EstimationCharts.push(function() {\n"
+        script += 'var data=' + to_json(data) + ";\n"
+        script += 'var args=' + to_json(args) + ";\n"
+        script += 'DrawBurndownChart(data, args);'
+        script += '});'
+
+        return tag.div(tag.div(id=element_id), tag.script(script))
 
     def _calculate_timetable(self, options, query_args, req):
         db = self.env.get_db_cnx()
@@ -268,27 +247,6 @@ class BurndownChart(EstimationToolsBase, WikiMacroBase):
                 current_date += timedelta(days=1)
 
         return timetable
-
-    def _scale_data(self, timetable, options):
-        # create sorted list of dates
-        dates = timetable.keys()
-        dates.sort()
-
-        maxhours = max(timetable.values() + [int(options.get('expected', 0))])
-
-        if maxhours <= Decimal(0):
-            maxhours = Decimal(100)
-        ydata = [str(self._round(timetable[d] * Decimal(100) / maxhours))
-                 for d in dates]
-        xdata = [str(self._round(x * Decimal(100) / (len(dates) - 1)))
-                 for x in range(len(dates))]
-
-        # mark ydata invalid that is after today
-        remaining_days = len([d for d in dates if d > options['today']])
-        if remaining_days:
-            ydata = ydata[: - remaining_days] + ['-1' for x in xrange(0, remaining_days)]
-
-        return xdata, ydata, maxhours
 
     def _round(self, decimal_):
         return decimal_.quantize(Decimal("0.01"), ROUND_HALF_UP)

@@ -46,15 +46,6 @@ def get_estimation_suffix():
         doc="""Suffix used for estimations. Defaults to 'h'""")
 
 
-def get_serverside_charts():
-    return BoolOption('estimation-tools', 'serverside_charts', 'false',
-        doc="""Generate charts links internally and fetch charts server-side
-        before returning to client, instead of generating Google links that
-        the users browser fetches directly. Particularly useful for sites
-        served behind SSL. Server-side charts uses POST requests internally,
-        increasing chart data size from 2K to 16K. Defaults to false.""")
-
-
 class EstimationToolsBase(Component):
     """ Base class EstimationTools components that auto-disables if
     estimation field is not properly configured. """
@@ -71,31 +62,6 @@ class EstimationToolsBase(Component):
                            "Estimation field not configured. "
                            "Component disabled.", self.__class__.__name__)
             self.env.disable_component(self)
-
-
-class GoogleChartProxy(EstimationToolsBase):
-    """ A Google Chart API proxy handler that moves chart fetching server-side.
-    Implemented to allow serving the charts under SSL encryption between client
-    and server - without the nagging error messages."""
-
-    implements(IRequestHandler)
-
-    def match_request(self, req):
-        return req.path_info == '/estimationtools/chart'
-
-    def process_request(self, req):
-        req.perm.require('TICKET_VIEW')
-        data = req.args.get('data', '')
-        opener = urllib2.build_opener(urllib2.HTTPHandler())
-        chart_req = urllib2.Request('http://chart.googleapis.com/chart',
-                                    data=data)
-        self.log.debug("Fetch chart, %r + data: %r",
-                       chart_req.get_method(), data)
-        chart = opener.open(chart_req)
-        for header, value in chart.headers.items():
-            req.send_header(header, value)
-        req.write(chart.read())
-        raise RequestDone
 
 
 def parse_options(db, content, options):
