@@ -17,3 +17,7 @@ function DrawBurndownChart(data, args) {
   args['dataTable'] = data;
   google.visualization.drawChart(args);
 }
+function DrawWorkloadChart(data, args) {
+  args['dataTable'] = data;
+  google.visualization.drawChart(args);
+}
