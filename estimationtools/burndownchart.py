@@ -183,8 +183,8 @@ class BurndownChart(EstimationToolsBase, WikiMacroBase):
             history_cursor.execute("SELECT "
                 "DISTINCT c.field as field, c.time AS time, c.oldvalue as oldvalue, c.newvalue as newvalue "
                 "FROM ticket t, ticket_change c "
-                "WHERE t.id = %s and c.ticket = t.id and (c.field=%s or c.field='status')"
-                "ORDER BY c.time ASC", [t['id'], self.estimation_field])
+                "WHERE t.id = %s and c.ticket = t.id and c.field in (%s, %s, 'status')"
+                "ORDER BY c.time ASC", [t['id'], self.estimation_field, self.totalhours_field])
 
             # Build up two dictionaries, mapping dates when effort/status
             # changed, to the latest effort/status on that day (in case of
@@ -192,9 +192,11 @@ class BurndownChart(EstimationToolsBase, WikiMacroBase):
             # effort/status, i.e. that at the time of ticket creation
 
             estimate_history = {}
+            totalhours_history = {}
             status_history = {}
 
             earliest_estimate = None
+            earliest_totalhours = None
             earliest_status = None
 
             for row in history_cursor:
@@ -206,6 +208,12 @@ class BurndownChart(EstimationToolsBase, WikiMacroBase):
                         estimate_history[event_date] = new_value
                     if earliest_estimate is None:
                         earliest_estimate = self._cast_estimate(row_old)
+                elif row_field == self.totalhours_field:
+                    new_value = self._cast_estimate(row_new)
+                    if new_value is not None:
+                        totalhours_history[event_date] = new_value
+                    if earliest_totalhours is None:
+                        earliest_totalhours = self._cast_estimate(row_old)
                 elif row_field == 'status':
                     status_history[event_date] = row_new
                     if earliest_status is None:
@@ -222,6 +230,11 @@ class BurndownChart(EstimationToolsBase, WikiMacroBase):
                     estimate_history[creation_date] = earliest_estimate
                 else:
                     estimate_history[creation_date] = latest_estimate
+            if not creation_date in totalhours_history:
+                if earliest_totalhours is not None:
+                    totalhours_history[creation_date] = earliest_totalhours
+                else:
+                    totalhours_history[creation_date] = Decimal(0)
             if not creation_date in status_history:
                 if earliest_status is not None:
                     status_history[creation_date] = earliest_status
@@ -236,6 +249,7 @@ class BurndownChart(EstimationToolsBase, WikiMacroBase):
 
             current_date = creation_date
             current_estimate = None
+            current_totalhours = None
             is_open = None
 
             while current_date <= options['enddate']:
@@ -245,8 +259,11 @@ class BurndownChart(EstimationToolsBase, WikiMacroBase):
                 if current_date in estimate_history:
                     current_estimate = estimate_history[current_date]
 
+                if current_date in totalhours_history:
+                    current_totalhours = totalhours_history[current_date]
+
                 if current_date >= options['startdate'] and is_open:
-                    timetable[current_date] += current_estimate
+                    timetable[current_date] += current_estimate - current_totalhours
 
                 current_date += timedelta(days=1)
 

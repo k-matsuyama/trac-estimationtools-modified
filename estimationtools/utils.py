@@ -56,6 +56,7 @@ class EstimationToolsBase(Component):
 
     abstract = True
     estimation_field = get_estimation_field()
+    totalhours_field = 'totalhours'
 
     def __init__(self, *args, **kwargs):
         if not self.env.config.has_option('ticket-custom',
