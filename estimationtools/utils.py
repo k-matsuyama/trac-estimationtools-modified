@@ -28,6 +28,11 @@ def get_estimation_field():
         doc="""Defines what custom field should be used to calculate
         estimation charts. Defaults to 'estimatedhours'""")
 
+def get_totalhours_field():
+    return Option('estimation-tools', 'totalhours_field', 'totalhours',
+        doc="""Defines what custom field should be used to calculate
+        estimation charts. Defaults to 'totalhours'""")
+
 
 def get_closed_states():
     return ListOption('estimation-tools', 'closed_states', 'closed',
@@ -56,7 +61,7 @@ class EstimationToolsBase(Component):
 
     abstract = True
     estimation_field = get_estimation_field()
-    totalhours_field = 'totalhours'
+    totalhours_field = get_totalhours_field()
 
     def __init__(self, *args, **kwargs):
         if not self.env.config.has_option('ticket-custom',
