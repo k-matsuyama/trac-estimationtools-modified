@@ -30,12 +30,15 @@ class HoursRemaining(EstimationToolsBase, WikiMacroBase):
         # ignore closed tickets
         options['status!'] = "|".join(self.closed_states)
 
+        # we need totalhours field
+        options['col'] = self.totalhours_field
+
         tickets = execute_query(self.env, req, options)
         
         sum = 0.0
         for t in tickets:
             try:
-                sum += float(t[self.estimation_field])
+                sum += float(t[self.estimation_field]) - float(t[self.totalhours_field])
             except:
                 pass
 
