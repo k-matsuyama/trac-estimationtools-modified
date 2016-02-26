@@ -106,9 +106,11 @@ class BurndownChart(EstimationToolsBase, WikiMacroBase):
                 'width': int(options['width']),
                 'height': int(options['height']),
                 'title': title,
+                'titlePosition': 'in',
                 'legend': { 'position': 'none' },
                 'colors': ['#' + options['color'], '#' + options['colorexpected']],
                 'chartArea': {
+                    'top': 10,
                     'width': '80%',
                     'backgroundColor': '#' + options['bgcolor']
                 },

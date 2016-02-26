@@ -7,13 +7,14 @@ google.setOnLoadCallback(function() {
 
 function DrawBurndownChart(data, args) {
   var hticks = [];
-  for (var n=1; n<data.length; n++) {
+  for (var n = 1; n < data.length; n++) {
     var d = new Date(data[n][0])
     data[n][0] = d;
-    if (n==1 || n==data.length-1 || d.getDate() == 1)
+    if (n == 1 || n == data.length-1 || d.getDate() == 1)
       hticks.push(d);
   }
-  // args['options']['hAxis']['ticks'] = hticks;
+  if (data[0].length == 2 && data[data.length-1][1] == null)
+    args['options']['hAxis']['ticks'] = hticks;
   args['dataTable'] = data;
   google.visualization.drawChart(args);
 }
