@@ -97,7 +97,7 @@ class BurndownChart(EstimationToolsBase, WikiMacroBase):
         for n, d in enumerate(dates):
             data.append([d.strftime('%Y-%m-%d'), str(timetable[d]) if d <= options['today'] else None])
             if expected is not None:
-                data[-1].append(str(self._round(expected * (len(dates) - n) / len(dates))))
+                data[-1].append(str(self._round(expected * (len(dates) - n - 1) / max(len(dates) - 1, 1))))
 
         args = {
             'containerId': element_id,
