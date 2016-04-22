@@ -244,7 +244,7 @@ class BurndownChart(EstimationToolsBase, WikiMacroBase):
                     current_totalhours = totalhours_history[current_date]
 
                 if current_date >= options['startdate'] and is_open:
-                    timetable[current_date] += current_estimate - current_totalhours
+                    timetable[current_date] += max(current_estimate - current_totalhours, 0)
 
                 current_date += timedelta(days=1)
 
